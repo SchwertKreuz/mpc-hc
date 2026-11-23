@@ -16347,6 +16347,18 @@ REFTIME CMainFrame::GetAvgTimePerFrame() const
     return refAvgTimePerFrame;
 }
 
+REFERENCE_TIME CMainFrame::GetTimecodeTimePerFrame() const
+{
+    // Audio-only files, capture and anything without a known frame rate fall back to the normal timer
+    if (GetLoadState() != MLS::LOADED || m_fAudioOnly || !m_graph.m_pBV
+            || (GetPlaybackMode() != PM_FILE && GetPlaybackMode() != PM_DVD)) {
+        return 0;
+    }
+
+    const REFTIME atpf = GetAvgTimePerFrame();
+    return atpf > 0.0 ? std::llround(atpf * 10000000.0) : 0;
+}
+
 void CMainFrame::OnVideoSizeChanged(const bool bWasAudioOnly /*= false*/)
 {
     const auto& s = AfxGetAppSettings();

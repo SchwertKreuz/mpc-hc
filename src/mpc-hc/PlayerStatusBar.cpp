@@ -34,6 +34,36 @@
 // tooltip tool for the audio channel icon, which is painted rather than a control
 static constexpr UINT_PTR AUDIO_ICON_TOOL = 1;
 
+// Number of the frame nearest to rt
+static LONGLONG TimeToFrame(REFERENCE_TIME rt, REFERENCE_TIME rtTimePerFrame)
+{
+    return rt > 0 ? (rt + rtTimePerFrame / 2) / rtTimePerFrame : 0;
+}
+
+// Formats a frame number as a timecode the way editing software shows it: HH:MM:SS:FF,
+// or HH:MM:SS;FF with drop-frame numbering for 29.97 fps
+static CString FrameToTimecode(LONGLONG n, REFERENCE_TIME rtTimePerFrame)
+{
+    const double fps = 10000000.0 / rtTimePerFrame;
+    const LONGLONG timebase = std::max(1LL, std::llround(fps));
+    const bool bDropFrame = timebase == 30 && std::abs(fps - 30.0) > 0.001;
+
+    if (bDropFrame) {
+        // frame numbers 0 and 1 are skipped at the start of every minute, except every tenth minute
+        const LONGLONG d = n / 17982;
+        const LONGLONG m = n % 17982;
+        n += 18 * d + (m > 1 ? 2 * ((m - 2) / 1798) : 0);
+    }
+
+    const LONGLONG ff = n % timebase;
+    const LONGLONG secs = n / timebase;
+
+    CString str;
+    str.Format(_T("%02I64d:%02I64d:%02I64d%c%02I64d"), secs / 3600, secs / 60 % 60, secs % 60,
+               bDropFrame ? _T(';') : _T(':'), ff);
+    return str;
+}
+
 IMPLEMENT_DYNAMIC(CPlayerStatusBar, CDialogBar)
 
 CPlayerStatusBar::CPlayerStatusBar(CMainFrame* pMainFrame)
@@ -392,11 +422,21 @@ void CPlayerStatusBar::SetStatusTimer(REFERENCE_TIME rtNow, REFERENCE_TIME rtDur
     m_rtNow = rtNow;
     m_rtDur = rtDur;
 
+    // The timecode counts frames, so it needs the frame duration; without one the normal timer is shown
+    const REFERENCE_TIME rtTimePerFrame = (s.bTimerTimecode && timeFormat == TIME_FORMAT_MEDIA_TIME)
+                                          ? m_pMainFrame->GetTimecodeTimePerFrame() : 0;
+
     if (rtDur > 0) {
         REFERENCE_TIME rtRem = rtDur - rtNow;
         CString durstr, remstr;
 
-        if (timeFormat == TIME_FORMAT_MEDIA_TIME) {
+        if (rtTimePerFrame > 0) {
+            const LONGLONG nNow = TimeToFrame(rtNow, rtTimePerFrame);
+            const LONGLONG nDur = TimeToFrame(rtDur, rtTimePerFrame);
+            posstr = FrameToTimecode(nNow, rtTimePerFrame);
+            durstr = FrameToTimecode(nDur, rtTimePerFrame);
+            remstr = FrameToTimecode(std::max(0LL, nDur - 1 - nNow), rtTimePerFrame);
+        } else if (timeFormat == TIME_FORMAT_MEDIA_TIME) {
             DVD_HMSF_TIMECODE tcNow, tcDur, tcRem;
 
             if (fHighPrecision || s.bHighPrecisionTimer) {
@@ -439,7 +479,9 @@ void CPlayerStatusBar::SetStatusTimer(REFERENCE_TIME rtNow, REFERENCE_TIME rtDur
             str.AppendFormat(_T(" (%.01f%%)"), s.fRemainingTime ? (100.0 * rtRem / rtDur) : (100.0 * rtNow / rtDur));
         }
     } else {
-        if (timeFormat == TIME_FORMAT_MEDIA_TIME) {
+        if (rtTimePerFrame > 0) {
+            str = FrameToTimecode(TimeToFrame(rtNow, rtTimePerFrame), rtTimePerFrame);
+        } else if (timeFormat == TIME_FORMAT_MEDIA_TIME) {
             DVD_HMSF_TIMECODE tcNow;
             if (fHighPrecision || s.bHighPrecisionTimer) {
                 tcNow = RT2HMSF(rtNow);
@@ -677,7 +719,8 @@ void CPlayerStatusBar::ShowTimerOptionsMenu(CWnd* pOwner, CPoint screenPt)
     enum {
         REMAINING_TIME = 1,
         HIGH_PRECISION,
-        SHOW_PERCENTAGE
+        SHOW_PERCENTAGE,
+        TIMECODE
     };
 
     m_timerMenu.DestroyMenu();
@@ -691,6 +734,7 @@ void CPlayerStatusBar::ShowTimerOptionsMenu(CWnd* pOwner, CPoint screenPt)
     }
     m_timerMenu.AppendMenu(nFlags, HIGH_PRECISION, ResStr(IDS_TIMER_HIGH_PRECISION));
     m_timerMenu.AppendMenu(MF_STRING | MF_ENABLED | (s.bTimerShowPercentage ? MF_CHECKED : MF_UNCHECKED), SHOW_PERCENTAGE, ResStr(IDS_TIMER_SHOW_PERCENTAGE));
+    m_timerMenu.AppendMenu(MF_STRING | MF_ENABLED | (s.bTimerTimecode ? MF_CHECKED : MF_UNCHECKED), TIMECODE, ResStr(IDS_TIMER_TIMECODE));
 
     m_timerMenu.fulfillThemeReqs();
     switch (m_timerMenu.TrackPopupMenu(TPM_LEFTBUTTON | TPM_RETURNCMD, screenPt.x, screenPt.y, pOwner)) {
@@ -704,6 +748,10 @@ void CPlayerStatusBar::ShowTimerOptionsMenu(CWnd* pOwner, CPoint screenPt)
             break;
         case SHOW_PERCENTAGE:
             s.bTimerShowPercentage = !s.bTimerShowPercentage;
+            m_eventc.FireEvent(MpcEvent::STREAM_POS_UPDATE_REQUEST);
+            break;
+        case TIMECODE:
+            s.bTimerTimecode = !s.bTimerTimecode;
             m_eventc.FireEvent(MpcEvent::STREAM_POS_UPDATE_REQUEST);
             break;
     }

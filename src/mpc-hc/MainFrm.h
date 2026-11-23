@@ -577,6 +577,8 @@ public:
     bool HasDedicatedFSVideoWindow() const;
     bool IsD3DFullScreenMode() const;
     bool IsSubresyncBarVisible() const;
+    // Duration of one video frame for the timer's timecode display, 0 when there are no frames to count
+    REFERENCE_TIME GetTimecodeTimePerFrame() const;
 
     CControlBar* m_pLastBar;
 

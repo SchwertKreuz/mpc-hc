@@ -27,6 +27,13 @@
 
 // CGoToDlg dialog
 
+// Start time of a 1-based frame number. It is rounded down: a seek to a time even slightly
+// after the start of a frame drops that frame and shows the next one.
+static REFERENCE_TIME FrameToTime(int frame, double fps)
+{
+    return frame < 2 || fps <= 0.0 ? 0LL : (REFERENCE_TIME)floor(10000000.0 * (frame - 1) / fps);
+}
+
 IMPLEMENT_DYNAMIC(CGoToDlg, CMPCThemeDialog)
 CGoToDlg::CGoToDlg(REFERENCE_TIME time, REFERENCE_TIME maxTime, double fps, bool audioOnly, CWnd* pParent /*=nullptr*/)
     : CMPCThemeDialog(CGoToDlg::IDD, pParent)
@@ -175,16 +182,17 @@ void CGoToDlg::OnParseFrameCode()
     AfxGetApp()->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_GOTO_LAST_USED, TYPE_FRAME);
 
     int frame;
-    float fps;
+    double fps;
     WCHAR c1; // delimiter character
     WCHAR c2; // extra character to ensure the end of string was reached
 
-    int result = swscanf_s(m_framestr, L"%d%c%f%c", &frame, &c1, 1, &fps, &c2, 1);
+    int result = swscanf_s(m_framestr, L"%d%c%lf%c", &frame, &c1, 1, &fps, &c2, 1);
     if (result == 1) {
-        m_time = frame < 2 ? 0LL : (REFERENCE_TIME)ceil(10000000.0 * (frame - 1) / m_fps);
+        m_time = FrameToTime(frame, m_fps);
         OnOK();
     } else if (result == 3 && c1 == L',') {
-        m_time = frame < 2 ? 0LL : (REFERENCE_TIME)ceil(10000000.0 * (frame - 1) / fps);
+        // The frame rate is shown with 3 decimals, so use the exact one when it wasn't changed
+        m_time = FrameToTime(frame, std::abs(fps - m_fps) < 0.0005 ? m_fps : fps);
         OnOK();
     } else if (result == 0 || c1 != L',') {
         AfxMessageBox(IDS_GOTO_ERROR_PARSING_TEXT, MB_ICONEXCLAMATION | MB_OK, 0);

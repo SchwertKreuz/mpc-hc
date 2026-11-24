@@ -7241,6 +7241,21 @@ static double GetExactTimePerFrame(REFERENCE_TIME rtAvgTimePerFrame)
     return (double)rtAvgTimePerFrame;
 }
 
+// Number of the frame shown at rt, i.e. the last frame that starts at or before rt.
+// +1 (100ns): a frame start rounded down to 100ns still counts as that frame.
+static LONGLONG GetFrameAtTime(REFERENCE_TIME rt, double dTimePerFrame)
+{
+    return rt > 0 ? (LONGLONG)floor((rt + 1) / dTimePerFrame) : 0;
+}
+
+// Start time of frame n, rounded down to 100ns so that a seek to it doesn't drop the frame.
+// The small offset keeps a start time that is an exact multiple of 100ns from being rounded
+// down one more because of the floating point error.
+static REFERENCE_TIME GetFrameStartTime(LONGLONG n, double dTimePerFrame)
+{
+    return n > 0 ? (REFERENCE_TIME)floor(n * dTimePerFrame + 0.001) : 0;
+}
+
 void CMainFrame::OnPlayFramestep(UINT nID)
 {
     if (!m_graph.m_pFS && !m_graph.m_pMS || m_fAudioOnly || GetLoadState() != MLS::LOADED || GetPlaybackMode() != PM_FILE && GetPlaybackMode() != PM_DVD) {
@@ -7304,8 +7319,22 @@ void CMainFrame::OnPlayFramestep(UINT nID)
     } else { // nID == ID_PLAY_FRAMESTEP_BACK
         const REFERENCE_TIME rtAvgTimePerFrame = std::llround(GetAvgTimePerFrame() * 10000000LL);
         REFERENCE_TIME rtCurPos = 0;
-        
-        if (m_nStepForwardCount) { // Exit of framestep forward, calculate current position
+
+        if (GetPlaybackMode() == PM_FILE && rtAvgTimePerFrame > 0) {
+            // Count in frames: subtracting the rounded time per frame from the position can
+            // go back two frames, e.g. 333667 is longer than a 29.97 fps frame
+            const double dTimePerFrame = GetExactTimePerFrame(rtAvgTimePerFrame);
+            LONGLONG nFrame;
+            if (m_nStepForwardCount) { // Exit of framestep forward, calculate current frame
+                m_graph.m_pFS->CancelStep();
+                nFrame = GetFrameAtTime(m_rtStepForwardStart, dTimePerFrame) + m_nStepForwardCount;
+                m_nStepForwardCount = 0;
+            } else {
+                m_graph.m_pMS->GetCurrentPosition(&rtCurPos);
+                nFrame = GetFrameAtTime(rtCurPos, dTimePerFrame);
+            }
+            rtCurPos = GetFrameStartTime(nFrame - 1, dTimePerFrame);
+        } else if (m_nStepForwardCount) { // Exit of framestep forward, calculate current position
             m_graph.m_pFS->CancelStep();
             rtCurPos = m_rtStepForwardStart + m_nStepForwardCount * rtAvgTimePerFrame;
             m_nStepForwardCount = 0;
@@ -7321,15 +7350,6 @@ void CMainFrame::OnPlayFramestep(UINT nID)
         } else {
             m_graph.m_pMS->GetCurrentPosition(&rtCurPos);
             rtCurPos -= rtAvgTimePerFrame;
-        }
-
-        if (GetPlaybackMode() != PM_DVD && rtAvgTimePerFrame > 0) {
-            // Seek to the start of the frame. A seek to a time even slightly after the start
-            // of a frame drops that frame and shows the next one, so the shown frame and the
-            // position would differ by one frame.
-            const double dTimePerFrame = GetExactTimePerFrame(rtAvgTimePerFrame);
-            const LONGLONG nFrame = std::llround(rtCurPos / dTimePerFrame);
-            rtCurPos = nFrame > 0 ? (REFERENCE_TIME)floor(nFrame * dTimePerFrame) : 0LL;
         }
 
         DoSeekTo(rtCurPos, false);
@@ -8581,11 +8601,11 @@ void CMainFrame::OnNavigateGoto()
         return;
     }
 
-    const REFERENCE_TIME rtAvgTimePerFrame = std::llround(GetAvgTimePerFrame() * 10000000LL);
+    const REFTIME atpf = GetAvgTimePerFrame();
 
     REFERENCE_TIME start, dur = -1;
     m_wndSeekBar.GetRange(start, dur);
-    CGoToDlg dlg(m_wndSeekBar.GetPos(), dur, rtAvgTimePerFrame > 0 ? (10000000.0 / GetExactTimePerFrame(rtAvgTimePerFrame)) : 0.0, m_fAudioOnly);
+    CGoToDlg dlg(m_wndSeekBar.GetPos(), dur, atpf > 0.0 ? (1.0 / atpf) : 0.0, m_fAudioOnly);
     if (IDOK != dlg.DoModal() || dlg.m_time < 0) {
         return;
     }
@@ -14042,6 +14062,19 @@ void CMainFrame::DoSeekTo(REFERENCE_TIME rtPos, bool bShowOSD /*= true*/)
                 force_complete = (rtCur == stop);
             }
         }
+
+        // Seek to the start of the frame shown at rtPos. A seek to a time even slightly after the
+        // start of a frame drops that frame and shows the next one, so the shown frame would
+        // depend on how the position was reached. A-B repeat point A is left as is, since a
+        // position before A seeks to A again.
+        if (GetPlaybackMode() == PM_FILE && !m_fAudioOnly && m_graph.m_pBV && !(abRepeat.positionA && rtPos == abRepeat.positionA)) {
+            const REFERENCE_TIME rtAvgTimePerFrame = std::llround(GetAvgTimePerFrame() * 10000000LL);
+            if (rtAvgTimePerFrame > 0) {
+                const double dTimePerFrame = GetExactTimePerFrame(rtAvgTimePerFrame);
+                rtPos = GetFrameStartTime(GetFrameAtTime(rtPos, dTimePerFrame), dTimePerFrame);
+            }
+        }
+
         m_wndStatusBar.SetStatusTimer(rtPos, stop, IsSubresyncBarVisible(), GetTimeFormat());
 
         if (bShowOSD) {

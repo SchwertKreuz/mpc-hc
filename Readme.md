@@ -1,3 +1,37 @@
+# MPC-HC-TC (unofficial fork of MPC-HC)
+
+**MPC-HC-TC is an unofficial fork of [MPC-HC](https://github.com/clsid2/mpc-hc). It is not affiliated with or endorsed by the MPC-HC project.** Please report problems with MPC-HC-TC to [this repository](https://github.com/SchwertKreuz/mpc-hc/issues), not to MPC-HC.
+
+### Changes from MPC-HC
+- **Timecode in the timer**: right-click the time in the status bar (or the seekbar time) and check **Timecode** to show the position, duration and remaining time as `HH:MM:SS:FF`, like editing software. 29.97 fps uses drop-frame timecode (`HH:MM:SS;FF`). The frame shown in the timecode always matches the frame on screen.
+- **FPS with up to 3 decimals** in the status bar: `23.976 fps` instead of `23.98 fps`.
+- **Seeks go to the start of the shown frame**, so frame step, Go To, seekbar clicks and jumps all show the frame that matches the position (MPC-HC can be one frame off).
+- **No update check against MPC-HC**: Help > Check for updates opens the [MPC-HC-TC releases](https://github.com/SchwertKreuz/mpc-hc/releases) page, and the automatic check is turned off, so the player doesn't offer to replace itself with MPC-HC.
+- The Japanese translation includes the new Timecode menu item.
+
+MPC-HC-TC keeps its settings in the same place as MPC-HC, so both share the same settings.
+
+### License and source
+MPC-HC-TC is licensed under [GPL v3](/COPYING.txt), like MPC-HC. The source of every release is the commit tagged for it in this repository. The included LAV Filters, FFmpeg and other components keep their own licenses. `d3dx9_43.dll` and `d3dcompiler_47.dll` are Microsoft DirectX redistributable files, included as in MPC-HC.
+
+### Building
+Build as described in [docs/Compilation.md](/docs/Compilation.md). With Visual Studio 2026 (MSVC 19.52), dav1d 1.5.3 in LAV Filters fails with error C7780; apply [patches/dav1d-msvc-stdatomic.patch](/patches/dav1d-msvc-stdatomic.patch) first (fixed in dav1d 1.5.5):
+```
+git -C src/thirdparty/LAVFilters/msvc/libs/dav1d/dav1d apply ../../../../../../../patches/dav1d-msvc-stdatomic.patch
+```
+
+### 日本語
+MPC-HC-TC は [MPC-HC](https://github.com/clsid2/mpc-hc) の**非公式 fork** です。MPC-HC プロジェクトとは関係がなく、公認も受けていません。不具合の報告は MPC-HC ではなく[このリポジトリ](https://github.com/SchwertKreuz/mpc-hc/issues)へお願いします。
+
+- ステータスバー（またはシークバー）の時間を右クリックして「タイムコード」にチェックを入れると、位置・総時間・残り時間を `HH:MM:SS:FF` で表示します（29.97 fps はドロップフレーム `HH:MM:SS;FF`）。表示は画面に映っているフレームと一致します。
+- ステータスバーの FPS を小数3桁まで表示します（`23.98 fps` ではなく `23.976 fps`）。
+- シーク先を「映っているフレームの開始時刻」にそろえるので、コマ送り・移動・シークバーのクリックで映像と時間がずれません。
+- MPC-HC の更新確認はしません。「ヘルプ → 更新の確認」は MPC-HC-TC のリリースページを開きます。
+- 設定は MPC-HC と同じ場所に保存されるので、両方入れると設定を共有します。
+- ライセンスは MPC-HC と同じ GPL v3 です。各リリースのソースは、このリポジトリのタグを付けたコミットです。
+
+---
+
 # Media Player Classic - Home Cinema
 
 Media Player Classic - Home Cinema (MPC-HC) is a free and open-source video and audio player for Windows. It is famous and loved for its simple and effective user interface, providing an excellent user experience. It offers a huge amount of functionality. Being a DirectShow player, it also allows flexibility and extensibility through third party filters.

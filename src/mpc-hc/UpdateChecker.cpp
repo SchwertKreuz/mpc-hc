@@ -223,6 +223,9 @@ int UpdateChecker::CompareVersion(const Version& v1, const Version& v2)
 
 bool UpdateChecker::IsAutoUpdateEnabled()
 {
+#if MPCHC_DISABLE_UPDATE_CHECK
+    return false;
+#else
     int& status = AfxGetAppSettings().nUpdaterAutoCheck;
 
     if (status == AUTOUPDATE_UNKNOWN) { // First run
@@ -230,6 +233,7 @@ bool UpdateChecker::IsAutoUpdateEnabled()
     }
 
     return (status == AUTOUPDATE_ENABLE);
+#endif
 }
 
 bool UpdateChecker::IsTimeToAutoUpdate()
@@ -285,6 +289,12 @@ static UINT RunCheckForUpdateThread(LPVOID pParam)
 
 void UpdateChecker::CheckForUpdate(bool autoCheck /*= false*/)
 {
+#if MPCHC_DISABLE_UPDATE_CHECK
+    // Show the fork's releases instead of checking the official ones
+    if (!autoCheck) {
+        ShellExecute(nullptr, _T("open"), DOWNLOAD_URL, nullptr, nullptr, SW_SHOWNORMAL);
+    }
+#else
     if (autoCheck && !IsTimeToAutoUpdate()) {
         return;
     }
@@ -306,6 +316,7 @@ void UpdateChecker::CheckForUpdate(bool autoCheck /*= false*/)
             bIsCheckingForUpdate = false;
         }
     }
+#endif
 }
 
 void UpdateChecker::HandleCheckResult(const UpdateCheckResult& result, CWnd* pParent, std::unique_ptr<UpdateCheckerDlg>& pDlg)

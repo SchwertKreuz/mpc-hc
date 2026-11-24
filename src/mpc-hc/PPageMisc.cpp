@@ -94,6 +94,10 @@ BOOL CPPageMisc::OnInitDialog()
     AdjustDynamicWidgets();
     UpdateData(FALSE);
 
+#if MPCHC_DISABLE_UPDATE_CHECK
+    m_updaterAutoCheckCtrl.EnableWindow(FALSE);
+#endif
+
     return TRUE;
 }
 
@@ -111,7 +115,7 @@ BOOL CPPageMisc::OnApply()
 
 void CPPageMisc::OnUpdateDelayEditBox(CCmdUI* pCmdUI)
 {
-    pCmdUI->Enable(m_updaterAutoCheckCtrl.GetCheck() == BST_CHECKED);
+    pCmdUI->Enable(!MPCHC_DISABLE_UPDATE_CHECK && m_updaterAutoCheckCtrl.GetCheck() == BST_CHECKED);
 }
 
 void CPPageMisc::OnResetSettings()

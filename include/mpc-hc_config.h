@@ -31,12 +31,18 @@
 #endif
 #endif
 
-#define WEBSITE_URL  _T("https://github.com/clsid2/mpc-hc/releases")
-#define DOWNLOAD_URL _T("https://github.com/clsid2/mpc-hc/releases")
+// MPC-HC-TC: unofficial fork of MPC-HC, not affiliated with the MPC-HC project.
+// Its links point to the fork, and it doesn't check the official releases for updates,
+// which would offer to replace it with a version without its changes.
+#define MPCHC_TC_NAME _T("MPC-HC-TC")
+#define MPCHC_DISABLE_UPDATE_CHECK 1
+
+#define WEBSITE_URL  _T("https://github.com/SchwertKreuz/mpc-hc/releases")
+#define DOWNLOAD_URL _T("https://github.com/SchwertKreuz/mpc-hc/releases")
 #define UPDATE_URL   _T("https://github.com/clsid2/mpc-hc/raw/develop/version.txt")
 #define BACKUP_UPDATE_URL   _T("https://cdn.jsdelivr.net/gh/clsid2/mpc-hc@develop/version.txt")
-#define TRAC_URL     _T("https://github.com/clsid2/mpc-hc/issues")
-#define BUGS_URL     _T("https://github.com/clsid2/mpc-hc/issues")
+#define TRAC_URL     _T("https://github.com/SchwertKreuz/mpc-hc/issues")
+#define BUGS_URL     _T("https://github.com/SchwertKreuz/mpc-hc/issues")
 
 #define USE_STATIC_UNRAR 1
 

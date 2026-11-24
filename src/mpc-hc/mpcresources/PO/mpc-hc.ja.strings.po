@@ -1835,6 +1835,10 @@ msgctxt "IDS_TIMER_HIGH_PRECISION"
 msgid "High precision"
 msgstr "高精細表示"
 
+msgctxt "IDS_TIMER_TIMECODE"
+msgid "Timecode"
+msgstr "タイムコード"
+
 msgctxt "IDS_AFTERPLAYBACK_REWIND"
 msgid "After Playback: Rewind current file"
 msgstr "再生終了後: 現在のファイルを巻き戻す"

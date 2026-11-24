@@ -7224,6 +7224,23 @@ void CMainFrame::OnUpdatePlayPauseStop(CCmdUI* pCmdUI)
     pCmdUI->Enable(fEnable);
 }
 
+// The average time per frame is rounded to 100ns, so frame times computed from it drift away
+// from the real ones (e.g. 333667 for 29.97 fps is 0.6ms late after 10 minutes). This returns
+// the exact frame duration for the usual N and N*1000/1001 fps frame rates.
+static double GetExactTimePerFrame(REFERENCE_TIME rtAvgTimePerFrame)
+{
+    for (const double scale : { 1.0, 1.001 }) {
+        const double fps = std::round(10000000.0 * scale / rtAvgTimePerFrame);
+        if (fps > 0.0) {
+            const double dTimePerFrame = 10000000.0 * scale / fps;
+            if (std::abs(dTimePerFrame - rtAvgTimePerFrame) <= 1.0) {
+                return dTimePerFrame;
+            }
+        }
+    }
+    return (double)rtAvgTimePerFrame;
+}
+
 void CMainFrame::OnPlayFramestep(UINT nID)
 {
     if (!m_graph.m_pFS && !m_graph.m_pMS || m_fAudioOnly || GetLoadState() != MLS::LOADED || GetPlaybackMode() != PM_FILE && GetPlaybackMode() != PM_DVD) {
@@ -7304,6 +7321,15 @@ void CMainFrame::OnPlayFramestep(UINT nID)
         } else {
             m_graph.m_pMS->GetCurrentPosition(&rtCurPos);
             rtCurPos -= rtAvgTimePerFrame;
+        }
+
+        if (GetPlaybackMode() != PM_DVD && rtAvgTimePerFrame > 0) {
+            // Seek to the start of the frame. A seek to a time even slightly after the start
+            // of a frame drops that frame and shows the next one, so the shown frame and the
+            // position would differ by one frame.
+            const double dTimePerFrame = GetExactTimePerFrame(rtAvgTimePerFrame);
+            const LONGLONG nFrame = std::llround(rtCurPos / dTimePerFrame);
+            rtCurPos = nFrame > 0 ? (REFERENCE_TIME)floor(nFrame * dTimePerFrame) : 0LL;
         }
 
         DoSeekTo(rtCurPos, false);
@@ -8555,11 +8581,11 @@ void CMainFrame::OnNavigateGoto()
         return;
     }
 
-    const REFTIME atpf = GetAvgTimePerFrame();
+    const REFERENCE_TIME rtAvgTimePerFrame = std::llround(GetAvgTimePerFrame() * 10000000LL);
 
     REFERENCE_TIME start, dur = -1;
     m_wndSeekBar.GetRange(start, dur);
-    CGoToDlg dlg(m_wndSeekBar.GetPos(), dur, atpf > 0.0 ? (1.0 / atpf) : 0.0, m_fAudioOnly);
+    CGoToDlg dlg(m_wndSeekBar.GetPos(), dur, rtAvgTimePerFrame > 0 ? (10000000.0 / GetExactTimePerFrame(rtAvgTimePerFrame)) : 0.0, m_fAudioOnly);
     if (IDOK != dlg.DoModal() || dlg.m_time < 0) {
         return;
     }
